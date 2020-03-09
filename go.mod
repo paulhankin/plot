@@ -1,4 +1,4 @@
-module github.com/paulhankin/gcode
+module github.com/paulhankin/plot
 
 go 1.14
 
