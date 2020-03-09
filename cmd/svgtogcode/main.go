@@ -3,13 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/paulhankin/plot/gcode"
+	"github.com/paulhankin/plot/paths"
 	"github.com/rustyoz/svg"
 )
 
@@ -81,40 +81,6 @@ func parseSVG(name string) (*svg.Svg, error) {
 	return svg.ParseSvgFromReader(f, "", 1.0)
 }
 
-type XForm struct {
-	OB [4]float64
-	NB [4]float64
-}
-
-func (xform *XForm) Transform(x, y float64) (float64, float64) {
-	x -= xform.OB[0]
-	x /= xform.OB[2] - xform.OB[0]
-	x *= xform.NB[2] - xform.NB[0]
-	x += xform.NB[0]
-
-	y -= xform.OB[1]
-	y /= xform.OB[3] - xform.OB[1]
-	y *= xform.NB[3] - xform.NB[1]
-	y += xform.NB[1]
-
-	return x, y
-}
-
-func outIns(w *gcode.Writer, xform *XForm, ins *svg.DrawingInstruction) {
-	switch ins.Kind {
-	case svg.LineInstruction:
-		x, y := xform.Transform(ins.M[0], ins.M[1])
-		w.Line(x, y)
-	case svg.MoveInstruction:
-		x, y := xform.Transform(ins.M[0], ins.M[1])
-		w.Move(x, y)
-	case svg.PaintInstruction:
-		// issued at the end of every path
-	default:
-		log.Fatalf("unhandled instruction type %v", ins.Kind)
-	}
-}
-
 func main() {
 	fail := func(s string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, s+"\n", args...)
@@ -126,17 +92,17 @@ func main() {
 		fail("must specify -in <svg file>")
 	}
 
-	svgIn, err := parseSVG(flagIn)
-	if err != nil {
-		fail("failed to parse svg: %v", err)
-	}
+	ps, err := func() (*paths.Paths, error) {
+		f, err := os.Open(flagIn)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return paths.FromSVG(f)
+	}()
 
-	view, err := svgIn.ViewBoxValues()
-	if err != nil {
-		fail("failed to read viewbox values: %v", err)
-	}
-	ow := view[2]
-	oh := view[3]
+	ow := ps.Bounds.Max[0] - ps.Bounds.Min[0]
+	oh := ps.Bounds.Max[1] - ps.Bounds.Min[1]
 	if flagSize.X == 0 && flagSize.Y == 0 {
 		flagSize.X = ow
 		flagSize.Y = oh
@@ -168,10 +134,10 @@ func main() {
 		flagDelta.Y += (flagPaperSize.Y - flagSize.Y) / 2
 	}
 
-	xform := &XForm{
-		OB: [4]float64{view[0], view[1], view[2] + view[0], view[3] + view[1]},
-		NB: [4]float64{flagDelta.X, flagDelta.Y, flagSize.X + flagDelta.X, flagSize.Y + flagDelta.Y},
-	}
+	ps.Transform(paths.Bounds{
+		Min: paths.Vec2{flagDelta.X, flagDelta.Y},
+		Max: paths.Vec2{flagSize.X + flagDelta.X, flagSize.Y + flagDelta.Y},
+	})
 
 	gcodeOut, err := os.Create(flagOut)
 	if err != nil {
@@ -185,26 +151,13 @@ func main() {
 
 	gcodeWriter.Preamble()
 
-	dic, erc := svgIn.ParseDrawingInstructions()
-
-	ddrain := false
-	edrain := false
-	for !ddrain || !edrain {
-		select {
-		case di, ok := <-dic:
-			if !ok {
-				dic = nil
-				ddrain = true
-				continue
+	for _, p := range ps.P {
+		for i, v := range p.V {
+			if i == 0 {
+				gcodeWriter.Move(v[0], v[1])
+			} else {
+				gcodeWriter.Line(v[0], v[1])
 			}
-			outIns(gcodeWriter, xform, di)
-		case err, ok := <-erc:
-			if !ok {
-				edrain = true
-				erc = nil
-				continue
-			}
-			fail("svg parse failed: %v", err)
 		}
 	}
 
