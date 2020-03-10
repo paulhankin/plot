@@ -1,79 +1,113 @@
 package paths
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"os"
+	"strconv"
+	"strings"
 
-	"github.com/rustyoz/svg"
+	"github.com/JoshVarga/svgparser"
+	"golang.org/x/net/html/charset"
 )
 
-func parseSVG(name string) (*svg.Svg, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
+func parseBounds(e *svgparser.Element) (Bounds, error) {
+	width, werr := strconv.ParseFloat(e.Attributes["width"], 64)
+	height, herr := strconv.ParseFloat(e.Attributes["height"], 64)
+	if werr != nil {
+		return Bounds{}, werr
 	}
-	defer f.Close()
-	return svg.ParseSvgFromReader(f, "", 1.0)
+	if herr != nil {
+		return Bounds{}, herr
+	}
+	// TODO: parse view box
+	return Bounds{
+		Max: Vec2{float64(width), float64(height)},
+	}, nil
+}
+
+func parsePath(ps *Paths, e *svgparser.Element) error {
+	parts := strings.Fields(e.Attributes["d"])
+	move := false
+	var xy Vec2
+	var xyp int
+	for _, p := range parts {
+		if p == "M" {
+			if xyp != 0 {
+				return fmt.Errorf("got odd number of components before M")
+			}
+			move = true
+			continue
+		}
+		if p == "L" {
+			if xyp != 0 {
+				return fmt.Errorf("got odd number of components before L")
+			}
+			continue
+		}
+		p = strings.TrimRight(p, ",")
+		x, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return err
+		}
+		xy[xyp] = x
+		xyp++
+		if xyp == 2 {
+			if move {
+				path := Path{}
+				ps.P = append(ps.P, path)
+			}
+			ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xy)
+			move = false
+			xyp = 0
+		}
+	}
+	if xyp != 0 {
+		return fmt.Errorf("got stray component in path")
+	}
+	return nil
+}
+
+func parsePaths(p *Paths, e *svgparser.Element) error {
+	for _, c := range e.Children {
+		switch c.Name {
+		case "g":
+			if err := parsePaths(p, c); err != nil {
+				return err
+			}
+		case "path":
+			if err := parsePath(p, c); err != nil {
+				return err
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "unknown child node type %q\n", c.Name)
+		}
+	}
+	return nil
 }
 
 // FromSVG reads the paths from an SVG file.
-func FromSVG(r io.Reader) (*Paths, error) {
-	svgIn, err := svg.ParseSvgFromReader(r, "", 1.0)
+func FromSVG(r io.Reader) (p *Paths, rerr error) {
+	raw, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-
-	view, err := svgIn.ViewBoxValues()
+	decoder := xml.NewDecoder(bytes.NewReader(raw))
+	decoder.CharsetReader = charset.NewReaderLabel
+	elt, err := svgparser.DecodeFirst(decoder)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read viewbox values: %v", err)
+		return nil, err
 	}
-
-	p := &Paths{
-		Bounds: Bounds{
-			Min: Vec2{view[0], view[1]},
-			Max: Vec2{view[0] + view[2], view[1] + view[3]},
-		},
+	if err := elt.Decode(decoder); err != nil && err != io.EOF {
+		return nil, err
 	}
-
-	dic, erc := svgIn.ParseDrawingInstructions()
-
-	ddrain := false
-	edrain := false
-	for !ddrain || !edrain {
-		select {
-		case ins, ok := <-dic:
-			if !ok {
-				dic = nil
-				ddrain = true
-				continue
-			}
-			switch ins.Kind {
-			case svg.LineInstruction:
-				pi := len(p.P) - 1
-				if pi < 0 {
-					return nil, fmt.Errorf("line issued before move")
-				}
-				p.P[pi].V = append(p.P[pi].V, Vec2{ins.M[0], ins.M[1]})
-			case svg.MoveInstruction:
-				p.P = append(p.P, Path{})
-				pi := len(p.P) - 1
-				p.P[pi].V = append(p.P[pi].V, Vec2{ins.M[0], ins.M[1]})
-			case svg.PaintInstruction:
-				// issued at the end of every path
-			default:
-				log.Fatalf("unhandled instruction type %v", ins.Kind)
-			}
-
-		case err, ok := <-erc:
-			if !ok {
-				edrain = true
-				erc = nil
-				continue
-			}
-			return nil, fmt.Errorf("svg parse failed: %v", err)
-		}
+	bs, err := parseBounds(elt)
+	if err != nil {
+		return nil, err
 	}
-	return p, nil
+	p = &Paths{Bounds: bs}
+	return p, parsePaths(p, elt)
 }

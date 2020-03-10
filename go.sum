@@ -1,6 +1,14 @@
+github.com/JoshVarga/svgparser v0.0.0-20180127083807-2dd6b34f0a80 h1:IzehUDi1XJfFrRP4LnV9Bd78tLg1CsibDPjWoROsM5g=
+github.com/JoshVarga/svgparser v0.0.0-20180127083807-2dd6b34f0a80/go.mod h1:tMmgUTWcco9d1ZmK7zjxuTv7XWZhyutXIsgu0uJ3gDw=
 github.com/rustyoz/Mtransform v0.0.0-20190224104252-60c8c35a3681 h1:+MSiFc2Ocn6tXnJqPK6gD3gMlD/Ku878zak2apGUD0Y=
 github.com/rustyoz/Mtransform v0.0.0-20190224104252-60c8c35a3681/go.mod h1:LoYQicvJKiYtg51aHi/pslb7cyYUevSnMuB5IlkjuF0=
 github.com/rustyoz/genericlexer v0.0.0-20190224115003-eb82fd2987bd h1:Obx9Gkv98ZAIwUAk4g8lmu/0qoSt0C3Rtp25JMd8mGI=
 github.com/rustyoz/genericlexer v0.0.0-20190224115003-eb82fd2987bd/go.mod h1:m65JtsVg785EjQvQylesseVucezoQZqJozlPAfjXmbE=
 github.com/rustyoz/svg v0.0.0-20191013033824-9c58bd1781a3 h1:gfK54LcjB31LpNudCxIsuFfzOICY66whGE5TQlAqpIM=
 github.com/rustyoz/svg v0.0.0-20191013033824-9c58bd1781a3/go.mod h1:fzOwHlLapZc+KrYbBhrUNF9/Mu5VuQjnI2Apt9JQwlI=
+golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
+golang.org/x/net v0.0.0-20200301022130-244492dfa37a h1:GuSPYbZzB5/dcLNCwLQLsg3obCJtX9IJhpXkvY7kzk0=
+golang.org/x/net v0.0.0-20200301022130-244492dfa37a/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
+golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
+golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
