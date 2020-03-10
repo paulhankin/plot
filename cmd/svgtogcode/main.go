@@ -118,6 +118,9 @@ func adjustSize(sz, ps, delta paths.Vec2, center bool, b paths.Bounds) (paths.Bo
 		Max: paths.Vec2{sz[0] + delta[0], sz[1] + delta[1]},
 	}, nil
 }
+func vec2lerp(x, y paths.Vec2, s float64) paths.Vec2 {
+	return paths.Vec2{x[0]*(1-s) + y[0]*s, x[1]*(1-s) + y[1]*s}
+}
 
 func main() {
 	fail := func(s string, args ...interface{}) {
@@ -145,6 +148,14 @@ func main() {
 	}
 
 	ps.Transform(bounds)
+
+	/*
+		clip := paths.Bounds{
+			Min: vec2lerp(bounds.Min, bounds.Max, 0.1),
+			Max: vec2lerp(bounds.Min, bounds.Max, 0.9),
+		}
+		ps.Clip(clip)
+	*/
 
 	gcodeOut, err := os.Create(flagOut)
 	if err != nil {
