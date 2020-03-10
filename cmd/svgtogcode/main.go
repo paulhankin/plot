@@ -151,6 +151,10 @@ func main() {
 	}
 
 	ps.Transform(bounds)
+	ps.Sort(&paths.SortConfig{
+		Split:   true,
+		Reverse: true,
+	})
 
 	/*
 		clip := paths.Bounds{
