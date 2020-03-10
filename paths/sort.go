@@ -28,18 +28,35 @@ type vindexNode struct {
 	x           Vec2
 	v           verticle
 	yaxis       bool
-	left, right *vindexNode
+	left, right interface{}
+}
+
+type vindexLeaf struct {
+	x []Vec2
+	v []verticle
 }
 
 type vindex struct {
 	minR float64
 	m    map[verticle]struct{}
-	node *vindexNode
+	node interface{}
 }
 
-func buildIndex(ps *Paths, vs []verticle, yaxis bool) *vindexNode {
+const leafThreshold = 20
+
+func buildIndex(ps *Paths, vs []verticle, yaxis bool) interface{} {
 	if len(vs) == 0 {
 		return nil
+	}
+	if len(vs) < leafThreshold {
+		var rx []Vec2
+		var rvs []verticle
+		for _, v := range vs {
+			rx = append(rx, ps.P[v.path].V[v.start])
+			rvs = append(rvs, v)
+
+		}
+		return &vindexLeaf{x: rx, v: rvs}
 	}
 	sort.Slice(vs, func(i, j int) bool {
 		vi := ps.P[vs[i].path].V[vs[i].start]
@@ -97,7 +114,35 @@ func vec2dist(v0, v1 Vec2) float64 {
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
-func (vi *vindex) findRadius(vn *vindexNode, pos Vec2, r float64) []vcand {
+func vec2distbounds(v0 Vec2, b Bounds) float64 {
+	v := Vec2{
+		math.Min(math.Max(v0[0], b.Min[0]), b.Max[0]),
+		math.Min(math.Max(v0[1], b.Min[1]), b.Max[1]),
+	}
+	return vec2dist(v0, v)
+}
+
+func (vi *vindex) findLeafRadius(vl *vindexLeaf, pos Vec2, r float64) []vcand {
+	var cand []vcand
+	for i := range vl.x {
+		d := vec2dist(vl.x[i], pos)
+		if d <= r {
+			if _, ok := vi.m[vl.v[i]]; ok {
+				cand = append(cand, vcand{dist: d, v: vl.v[i]})
+			}
+		}
+	}
+	return cand
+}
+
+func (vi *vindex) findRadius(vni interface{}, pos Vec2, r float64, bounds Bounds) []vcand {
+	if vleaf, ok := vni.(*vindexLeaf); ok {
+		return vi.findLeafRadius(vleaf, pos, r)
+	}
+	vn, ok := vni.(*vindexNode)
+	if !ok {
+		panic("bad")
+	}
 	if vn == nil {
 		return nil
 	}
@@ -120,15 +165,31 @@ func (vi *vindex) findRadius(vn *vindexNode, pos Vec2, r float64) []vcand {
 		axdist = math.Abs(pos[0] - vn.x[0])
 	}
 
+	axis := 0
+	if vn.yaxis {
+		axis = 1
+	}
 	if left {
-		cand = append(cand, vi.findRadius(vn.left, pos, r)...)
+		nb := bounds
+		nb.Max[axis] = vn.x[axis]
+		cand = append(cand, vi.findRadius(vn.left, pos, r, nb)...)
 		if axdist <= r {
-			cand = append(cand, vi.findRadius(vn.right, pos, r)...)
+			nb := bounds
+			nb.Min[axis] = vn.x[axis]
+			if vec2distbounds(pos, nb) <= r {
+				cand = append(cand, vi.findRadius(vn.right, pos, r, nb)...)
+			}
 		}
 	} else {
-		cand = append(cand, vi.findRadius(vn.right, pos, r)...)
+		nb := bounds
+		nb.Min[axis] = vn.x[axis]
+		cand = append(cand, vi.findRadius(vn.right, pos, r, nb)...)
 		if axdist <= r {
-			cand = append(cand, vi.findRadius(vn.left, pos, r)...)
+			nb := bounds
+			nb.Max[axis] = vn.x[axis]
+			if vec2distbounds(pos, nb) <= r {
+				cand = append(cand, vi.findRadius(vn.left, pos, r, nb)...)
+			}
 		}
 	}
 
@@ -137,8 +198,14 @@ func (vi *vindex) findRadius(vn *vindexNode, pos Vec2, r float64) []vcand {
 
 func (vi *vindex) popNearest(pos Vec2) verticle {
 	r := vi.minR
+	minf := -1e19
+	maxf := 1e19
 	for {
-		cands := vi.findRadius(vi.node, pos, r)
+		bs := Bounds{
+			Min: Vec2{minf, minf},
+			Max: Vec2{maxf, maxf},
+		}
+		cands := vi.findRadius(vi.node, pos, r, bs)
 		if len(cands) > 0 {
 			best := 0
 			for i := 1; i < len(cands); i++ {
@@ -157,7 +224,7 @@ func (vi *vindex) popNearest(pos Vec2) verticle {
 }
 
 func sortVerticles(ps *Paths, vs []verticle, want int) []verticle {
-	minR := (ps.Bounds.Max[0] - ps.Bounds.Min[0]) / 20
+	minR := (ps.Bounds.Max[0] - ps.Bounds.Min[0]) / 100
 	idx := indexVerticles(ps, vs, minR)
 	res := make([]verticle, 0, want)
 	var pos Vec2
