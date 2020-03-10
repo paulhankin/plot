@@ -57,6 +57,11 @@ var (
 	flagCenter    bool
 	flagPenUp     int
 	flagFeedRate  int
+
+	flagSplit   bool
+	flagReverse bool
+
+	flagSimplify float64
 )
 
 func init() {
@@ -68,6 +73,9 @@ func init() {
 	flag.BoolVar(&flagCenter, "center", false, "if set, center image on paper")
 	flag.IntVar(&flagPenUp, "penup", 40, "how much to lift pen when moving")
 	flag.IntVar(&flagFeedRate, "feed", 800, "feed rate when drawing (mm/min)")
+	flag.BoolVar(&flagSplit, "split", true, "allow paths to be split to reduce pen movement")
+	flag.BoolVar(&flagReverse, "reverse", true, "allow paths to be drawn backwards to reduce pen movement")
+	flag.Float64Var(&flagSimplify, "simplify", 0.1, "simplify paths within this tolerance (0=disabled)")
 }
 
 func parseSVG(name string) (*svg.Svg, error) {
@@ -151,18 +159,15 @@ func main() {
 	}
 
 	ps.Transform(bounds)
-	ps.Sort(&paths.SortConfig{
-		Split:   true,
-		Reverse: true,
-	})
+	ps.Clip(ps.Bounds)
+	if flagSimplify > 0 {
+		ps.Simplify(flagSimplify)
+	}
 
-	/*
-		clip := paths.Bounds{
-			Min: vec2lerp(bounds.Min, bounds.Max, 0.1),
-			Max: vec2lerp(bounds.Min, bounds.Max, 0.9),
-		}
-		ps.Clip(clip)
-	*/
+	ps.Sort(&paths.SortConfig{
+		Split:   flagSplit,
+		Reverse: flagReverse,
+	})
 
 	gcodeOut, err := os.Create(flagOut)
 	if err != nil {
