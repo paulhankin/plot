@@ -18,6 +18,7 @@ func parseSVG(name string) (*svg.Svg, error) {
 	return svg.ParseSvgFromReader(f, "", 1.0)
 }
 
+// FromSVG reads the paths from an SVG file.
 func FromSVG(r io.Reader) (*Paths, error) {
 	svgIn, err := svg.ParseSvgFromReader(r, "", 1.0)
 	if err != nil {

@@ -141,6 +141,9 @@ func main() {
 		defer f.Close()
 		return paths.FromSVG(f)
 	}()
+	if err != nil {
+		fail("%s", err)
+	}
 
 	bounds, err := adjustSize(flagSize, flagPaperSize, flagDelta, flagCenter, ps.Bounds)
 	if err != nil {
