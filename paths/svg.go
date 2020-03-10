@@ -1,6 +1,7 @@
 package paths
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/xml"
 	"fmt"
@@ -110,4 +111,37 @@ func FromSVG(r io.Reader) (p *Paths, rerr error) {
 	}
 	p = &Paths{Bounds: bs}
 	return p, parsePaths(p, elt)
+}
+
+var (
+	svgh = `<svg height="%d" width="%d" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
+)
+
+func (ps *Paths) SVG(w io.Writer) error {
+	var werr error
+	bi := bufio.NewWriter(w)
+	wr := func(f string, args ...interface{}) {
+		if werr != nil {
+			return
+		}
+		_, werr = fmt.Fprintf(bi, f, args...)
+	}
+	wr(svgh, int(ps.Bounds.Max[1]), int(ps.Bounds.Max[0]), int(ps.Bounds.Min[0]), int(ps.Bounds.Min[1]), int(ps.Bounds.Max[0]-ps.Bounds.Min[0]), int(ps.Bounds.Max[1]-ps.Bounds.Min[1]))
+	wr("\n")
+	for _, p := range ps.P {
+		wr(`<path fill="none" stroke="black" stroke-width="0.1" d="`)
+		for i, v := range p.V {
+			if i == 0 {
+				wr("M %.2f, %.2f", v[0], v[1])
+			} else {
+				wr(" %.2f, %.2f", v[0], v[1])
+			}
+		}
+		wr("\"/>\n")
+	}
+	wr("</svg>")
+	if werr == nil {
+		werr = bi.Flush()
+	}
+	return werr
 }

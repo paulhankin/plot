@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -66,7 +67,7 @@ var (
 
 func init() {
 	flag.StringVar(&flagIn, "in", "", "svg input file")
-	flag.StringVar(&flagOut, "out", "out.gcode", "gcode output file")
+	flag.StringVar(&flagOut, "out", "out.gcode", "gcode or svg output file")
 	flag.Var((*flagSizeValue)(&flagDelta), "offset", "displacement of 0,0 from pen origin")
 	flag.Var((*flagSizeValue)(&flagSize), "size", "target size of image (mm)")
 	flag.Var((*flagSizeValue)(&flagPaperSize), "paper", "target size of paper (mm)")
@@ -171,7 +172,18 @@ func main() {
 
 	gcodeOut, err := os.Create(flagOut)
 	if err != nil {
-		fail("failed to open gcode output file: %v", err)
+		fail("failed to open output file: %v", err)
+	}
+
+	if filepath.Ext(flagOut) == ".svg" {
+		err := ps.SVG(gcodeOut)
+		if err == nil {
+			err = gcodeOut.Close()
+		}
+		if err != nil {
+			fail("failed to write svg file: %v", err)
+		}
+		return
 	}
 
 	gcodeWriter := gcode.NewWriter(gcodeOut, &gcode.Config{
