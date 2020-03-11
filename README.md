@@ -1,4 +1,4 @@
-# Plot for gcode-based xy-plotters
+# *Plot* -- for gcode-based xy-plotters
 
 This repository contains code for generating commands for an
 xy-plotter.
@@ -16,6 +16,9 @@ clips all lines outside the image, reorders the paths to reduce
 pen movement, and centers it on an A4 page of size 297mm by 210mm.
 Finally, it writes the output file `out.gcode` which can be sent
 to an xy-plotter which understands gcode.
+
+Note that this code understands and parses only a small part of
+the SVG standard.
 
 The `paths` package contains code for loading and saving SVG
 files, resizing, clipping, and sorting paths.
