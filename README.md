@@ -1,4 +1,4 @@
-# *Plot* -- for gcode-based xy-plotters
+# *Plot* &mdash; for gcode-based xy-plotters
 
 This repository contains code for generating commands for an
 xy-plotter.
