@@ -272,7 +272,10 @@ func parsePaths(p *Paths, xform *svgXform, e *svgparser.Element) error {
 	return nil
 }
 
-// FromSVG reads the paths from an SVG file.
+// FromSVG parses an SVG file, extracting paths.
+// This provides only limited SVG parsing support, and
+// will fail or produce incorrect results if the SVG file
+// uses features that it doesn't understand.
 func FromSVG(r io.Reader) (p *Paths, rerr error) {
 	raw, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -299,6 +302,7 @@ var (
 	svgh = `<svg height="%d" width="%d" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
 )
 
+// SVG writes an SVG file that contains black strokes along the paths.
 func (ps *Paths) SVG(w io.Writer) error {
 	var werr error
 	bi := bufio.NewWriter(w)

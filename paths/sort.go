@@ -5,6 +5,7 @@ import (
 	"sort"
 )
 
+// SortConfig provides options for path sorting.
 type SortConfig struct {
 	Split   bool // ok to split continuous paths
 	Reverse bool // ok to draw paths in the reverse direction
@@ -236,6 +237,10 @@ func sortVerticles(ps *Paths, vs []verticle, want int) []verticle {
 	return res
 }
 
+// Sort reorders paths to reduce the amount of movement between the
+// end of one path and the start of the next. This is intended to
+// improve rendering time using a physical xy plotter.
+// The reordering can be configured in a limited way.
 func (ps *Paths) Sort(cfg *SortConfig) {
 	// construct all the verticles
 	var vs []verticle

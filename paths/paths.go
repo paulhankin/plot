@@ -1,3 +1,5 @@
+// Package paths provides tools for manipulating 2d paths consisting
+// of line segments.
 package paths
 
 // Vec2 is a 2-dimensional vector.

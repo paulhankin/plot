@@ -1,3 +1,13 @@
+// Binary svgtogcode converts an input svg file into gcode for
+// an xy plotter.
+// Apart from the file format conversion, it can scale the image,
+// simplify paths, and sorts them to reduce pen movement.
+//
+// An example use is:
+//   svgtocode -in drawing.svg -size 270,180 -paper 297,210 -center -penup 35 -out out.gcode -simplify 0.1
+// Vector arguments, like -size and -paper take a pair of comma-separated values (no spaces).
+// If the -out <file> ends in .svg, the output is in svg format rather than gcode format.
+// All distance measurements are in millimeters.
 package main
 
 import (
@@ -11,7 +21,6 @@ import (
 
 	"github.com/paulhankin/plot/gcode"
 	"github.com/paulhankin/plot/paths"
-	"github.com/rustyoz/svg"
 )
 
 type flagSizeValue paths.Vec2
@@ -68,24 +77,15 @@ var (
 func init() {
 	flag.StringVar(&flagIn, "in", "", "svg input file")
 	flag.StringVar(&flagOut, "out", "out.gcode", "gcode or svg output file")
-	flag.Var((*flagSizeValue)(&flagDelta), "offset", "displacement of 0,0 from pen origin")
-	flag.Var((*flagSizeValue)(&flagSize), "size", "target size of image (mm)")
-	flag.Var((*flagSizeValue)(&flagPaperSize), "paper", "target size of paper (mm)")
+	flag.Var((*flagSizeValue)(&flagDelta), "offset", "displacement x,y of image origin from pen origin (mm)")
+	flag.Var((*flagSizeValue)(&flagSize), "size", "target size x,y of image (mm)")
+	flag.Var((*flagSizeValue)(&flagPaperSize), "paper", "target size x,y of paper (mm)")
 	flag.BoolVar(&flagCenter, "center", false, "if set, center image on paper")
 	flag.IntVar(&flagPenUp, "penup", 40, "how much to lift pen when moving")
 	flag.IntVar(&flagFeedRate, "feed", 800, "feed rate when drawing (mm/min)")
 	flag.BoolVar(&flagSplit, "split", true, "allow paths to be split to reduce pen movement")
 	flag.BoolVar(&flagReverse, "reverse", true, "allow paths to be drawn backwards to reduce pen movement")
 	flag.Float64Var(&flagSimplify, "simplify", 0.1, "simplify paths within this tolerance (0=disabled)")
-}
-
-func parseSVG(name string) (*svg.Svg, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return svg.ParseSvgFromReader(f, "", 1.0)
 }
 
 func adjustSize(sz, ps, delta paths.Vec2, center bool, b paths.Bounds) (paths.Bounds, error) {
@@ -131,7 +131,24 @@ func vec2lerp(x, y paths.Vec2, s float64) paths.Vec2 {
 	return paths.Vec2{x[0]*(1-s) + y[0]*s, x[1]*(1-s) + y[1]*s}
 }
 
+func usageMessage() {
+	var w = func(f string, args ...interface{}) {
+		fmt.Fprintf(flag.CommandLine.Output(), f, args...)
+	}
+	w("%s converts an input svg file into gcode for an xy plotter.\n", os.Args[0])
+	w("Apart from the file format conversion, it can scale the image,\n")
+	w("simplify paths, and sorts them to reduce pen movement.\n\n")
+	w("An example use is:\n\n")
+	w("    svgtocode -in drawing.svg -size 270,180 -paper 297,210 -center -penup 35 -out out.gcode -simplify 0.1\n\n")
+	w("Vector arguments, like -size and -paper take a pair of comma-separated values (no spaces).\n")
+	w("If the -out <file> ends in .svg, the output is in svg format rather than gcode format.\n")
+	w("All distance measurements are in millimeters.\n\n")
+	w("Usage:\n")
+	flag.PrintDefaults()
+}
+
 func main() {
+	flag.Usage = usageMessage
 	fail := func(s string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, s+"\n", args...)
 		os.Exit(2)
