@@ -25,6 +25,12 @@ func (v verticle) reversed() verticle {
 	return v
 }
 
+// A vindexNode is part of a kd-tree. The tree splits
+// remaining points based on whether they are left/right of the given
+// verticle (whose start point is at position x).
+// If yaxis is set below/above (rather than left/right) is used instead.
+// Note that verticles that have the same x coordinate (or y coordinate if yaxis)
+// may go either to the left or right.
 type vindexNode struct {
 	x           Vec2
 	v           verticle
@@ -32,11 +38,19 @@ type vindexNode struct {
 	left, right interface{}
 }
 
+// A vindexLeaf is a leaf node of a kd-tree. It's just a bunch
+// of verticles, with their positions of their start points stored in the
+// parallel array x.
 type vindexLeaf struct {
 	x []Vec2
 	v []verticle
 }
 
+// vindex is a spatial index of verticles.
+// node is a *vindexNode or *vindexLeaf, and represents a kd-tree.
+// Rather than removing points from the kd-tree, we maintain a map
+// of valid verticles in the kd-tree. This isn't best, but it's easy
+// and fast enough so far.
 type vindex struct {
 	minR float64
 	m    map[verticle]struct{}
@@ -59,6 +73,8 @@ func buildIndex(ps *Paths, vs []verticle, yaxis bool) interface{} {
 		}
 		return &vindexLeaf{x: rx, v: rvs}
 	}
+	// We need to find the median verticle. Sorting and picking the
+	// central element is not optimal, but is fast.
 	sort.Slice(vs, func(i, j int) bool {
 		vi := ps.P[vs[i].path].V[vs[i].start]
 		vj := ps.P[vs[j].path].V[vs[j].start]
@@ -68,18 +84,6 @@ func buildIndex(ps *Paths, vs []verticle, yaxis bool) interface{} {
 			return vi[0] < vj[0]
 		}
 	})
-
-	if true {
-		// check "left" is always the smaller coordinates
-		first := vs[0]
-		last := vs[len(vs)-1]
-		if yaxis && ps.P[last.path].V[last.start][1] < ps.P[first.path].V[first.start][1] {
-			panic("y")
-		}
-		if !yaxis && ps.P[last.path].V[last.start][0] < ps.P[first.path].V[first.start][0] {
-			panic("x")
-		}
-	}
 
 	k := len(vs) / 2
 	return &vindexNode{
@@ -104,6 +108,8 @@ func indexVerticles(ps *Paths, vs []verticle, minR float64) *vindex {
 	}
 }
 
+// vcand is a candidate verticle from a search, along with
+// its distance from the search point.
 type vcand struct {
 	dist float64
 	v    verticle
@@ -115,7 +121,13 @@ func vec2dist(v0, v1 Vec2) float64 {
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
+// vec2distbounds returns the distance of v0 from the
+// rectangle given by bounds. Points inside the bounds
+// return 0.
 func vec2distbounds(v0 Vec2, b Bounds) float64 {
+	// We clamp the x and y coords to the bounds.
+	// This is the closest point inside the bounds
+	// to v0.
 	v := Vec2{
 		math.Min(math.Max(v0[0], b.Min[0]), b.Max[0]),
 		math.Min(math.Max(v0[1], b.Min[1]), b.Max[1]),
@@ -136,6 +148,8 @@ func (vi *vindex) findLeafRadius(vl *vindexLeaf, pos Vec2, r float64) []vcand {
 	return cand
 }
 
+// findRadius returns all points within distance r of pos.
+// Bounds (from the kd-tree) are maintained to reduce the search.
 func (vi *vindex) findRadius(vni interface{}, pos Vec2, r float64, bounds Bounds) []vcand {
 	if vleaf, ok := vni.(*vindexLeaf); ok {
 		return vi.findLeafRadius(vleaf, pos, r)
@@ -197,6 +211,7 @@ func (vi *vindex) findRadius(vni interface{}, pos Vec2, r float64, bounds Bounds
 	return cand
 }
 
+// popNearest removes and returns the nearest verticle to the given position.
 func (vi *vindex) popNearest(pos Vec2) verticle {
 	r := vi.minR
 	minf := -1e19
@@ -225,6 +240,11 @@ func (vi *vindex) popNearest(pos Vec2) verticle {
 }
 
 func sortVerticles(ps *Paths, vs []verticle, want int) []verticle {
+	// This uses the same ideas as Invonvergent's edge sort.
+	// https://github.com/inconvergent/svgsort/blob/master/svgsort/sort_utils.py
+	// Start from the closest point to the origin, follow a line from
+	// that point, and then greedily pick the closest point to the endpoint
+	// of that line that hasn't already been consumed. Repeat.
 	minR := (ps.Bounds.Max[0] - ps.Bounds.Min[0]) / 100
 	idx := indexVerticles(ps, vs, minR)
 	res := make([]verticle, 0, want)
@@ -242,7 +262,12 @@ func sortVerticles(ps *Paths, vs []verticle, want int) []verticle {
 // improve rendering time using a physical xy plotter.
 // The reordering can be configured in a limited way.
 func (ps *Paths) Sort(cfg *SortConfig) {
-	// construct all the verticles
+	// Construct all the verticles.
+	// If we allow splitting, each line in a path gets
+	// its own verticle, otherwise the verticle contains
+	// only the start and endpoint.
+	// If we allow reversed lines, whenever we add a verticle
+	// we also add the reversed form of it.
 	var vs []verticle
 	for i, p := range ps.P {
 		if cfg.Split {
