@@ -49,15 +49,14 @@ func (ps *Paths) Transform(nb Bounds) {
 // unless the last path already ends at x.
 func (ps *Paths) move(x Vec2) {
 	if len(ps.P) == 0 {
-		ps.P = append(ps.P, Path{})
+		ps.P = append(ps.P, Path{V: []Vec2{x}})
+		return
 	}
 	p := &ps.P[len(ps.P)-1]
 	if len(p.V) > 0 && p.V[len(p.V)-1] == x {
 		return
 	}
-	ps.P = append(ps.P, Path{})
-	p = &ps.P[len(ps.P)-1]
-	p.V = append(p.V, x)
+	ps.P = append(ps.P, Path{V: []Vec2{x}})
 }
 
 // line extends the last path with an edge that goes to x.
