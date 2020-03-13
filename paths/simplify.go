@@ -7,9 +7,13 @@ import (
 func vec2linedist(v, s, e Vec2) float64 {
 	ds := vec2dist(v, s)
 	de := vec2dist(v, e)
-	n := Vec2{e[1] - s[1], s[0] - e[0]}
-	dp := v[0]*n[0] + v[1]*n[1]
-	return math.Min(math.Min(math.Abs(dp), ds), de)
+	diff := Vec2{e[0] - s[0], e[1] - s[1]}
+	dlen := math.Sqrt(diff[0]*diff[0] + diff[1]*diff[1])
+	if dlen == 0 {
+		return ds
+	}
+	dp := math.Abs(diff[1]*v[0]-diff[0]*v[1]+e[0]*s[1]-e[1]*s[0]) / dlen
+	return math.Min(math.Min(dp, ds), de)
 }
 
 func simplifyPath(v []Vec2, tol float64) []Vec2 {
@@ -37,11 +41,7 @@ func simplifyPath(v []Vec2, tol float64) []Vec2 {
 // all removed points are within the given tolerance (distance)
 // from the new path.
 func (ps *Paths) Simplify(tol float64) {
-	vc := 0
-	nvc := 0
 	for i, p := range ps.P {
-		vc += len(p.V)
 		ps.P[i].V = simplifyPath(p.V, tol)
-		nvc += len(ps.P[i].V)
 	}
 }
