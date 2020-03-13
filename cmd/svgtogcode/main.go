@@ -13,13 +13,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/paulhankin/plot/gcode"
+	"github.com/paulhankin/plot/cmd/svgtogcode/svgtogcode"
 	"github.com/paulhankin/plot/paths"
 )
 
@@ -56,79 +54,20 @@ func (fs *flagSizeValue) Set(s string) error {
 	return nil
 }
 
-// flags
-var (
-	flagIn  string
-	flagOut string
-
-	flagDelta     paths.Vec2
-	flagSize      paths.Vec2
-	flagPaperSize paths.Vec2
-	flagCenter    bool
-	flagPenUp     int
-	flagFeedRate  int
-
-	flagSplit   bool
-	flagReverse bool
-
-	flagSimplify float64
-)
+var config svgtogcode.Config
 
 func init() {
-	flag.StringVar(&flagIn, "in", "", "svg input file")
-	flag.StringVar(&flagOut, "out", "out.gcode", "gcode or svg output file")
-	flag.Var((*flagSizeValue)(&flagDelta), "offset", "displacement x,y of image origin from pen origin (mm)")
-	flag.Var((*flagSizeValue)(&flagSize), "size", "target size x,y of image (mm)")
-	flag.Var((*flagSizeValue)(&flagPaperSize), "paper", "target size x,y of paper (mm)")
-	flag.BoolVar(&flagCenter, "center", false, "if set, center image on paper")
-	flag.IntVar(&flagPenUp, "penup", 40, "how much to lift pen when moving")
-	flag.IntVar(&flagFeedRate, "feed", 800, "feed rate when drawing (mm/min)")
-	flag.BoolVar(&flagSplit, "split", true, "allow paths to be split to reduce pen movement")
-	flag.BoolVar(&flagReverse, "reverse", true, "allow paths to be drawn backwards to reduce pen movement")
-	flag.Float64Var(&flagSimplify, "simplify", 0.1, "simplify paths within this tolerance (0=disabled)")
-}
-
-func adjustSize(sz, ps, delta paths.Vec2, center bool, b paths.Bounds) (paths.Bounds, error) {
-	ow := b.Max[0] - b.Min[0]
-	oh := b.Max[1] - b.Min[1]
-	if sz[0] == 0 && sz[1] == 0 {
-		sz[0] = ow
-		sz[1] = oh
-	} else if sz[1] == 0 {
-		sz[1] = sz[1] * oh / ow
-	} else if sz[0] == 0 {
-		sz[0] = sz[0] * ow / oh
-	}
-
-	if !(math.Abs(sz[0]/sz[1]-ow/oh) < 1e-3) {
-		return paths.Bounds{}, fmt.Errorf("target image size %s not compatible with image size %g,%g", &sz, ow, oh)
-	}
-
-	if ps[0] != 0 || ps[1] != 0 {
-		if ps[0] == 0 || ps[1] == 0 {
-			return paths.Bounds{}, fmt.Errorf("paper size %g,%g doesn't make sense", ps[0], ps[1])
-		}
-
-		if sz[0] > ps[0] || sz[1] > ps[1] {
-			return paths.Bounds{}, fmt.Errorf("paper size %g,%g is smaller than image %g,%g", ps[0], ps[1], sz[0], sz[1])
-		}
-	}
-
-	if center {
-		if ps[0] == 0 {
-			return paths.Bounds{}, fmt.Errorf("must set -papersize to use -center")
-		}
-		delta[0] += (ps[0] - sz[0]) / 2
-		delta[1] += (ps[1] - sz[1]) / 2
-	}
-
-	return paths.Bounds{
-		Min: paths.Vec2{delta[0], delta[1]},
-		Max: paths.Vec2{sz[0] + delta[0], sz[1] + delta[1]},
-	}, nil
-}
-func vec2lerp(x, y paths.Vec2, s float64) paths.Vec2 {
-	return paths.Vec2{x[0]*(1-s) + y[0]*s, x[1]*(1-s) + y[1]*s}
+	flag.StringVar(&config.In, "in", "", "svg input file")
+	flag.StringVar(&config.Out, "out", "out.gcode", "gcode or svg output file")
+	flag.Var((*flagSizeValue)(&config.Delta), "offset", "displacement x,y of image origin from pen origin (mm)")
+	flag.Var((*flagSizeValue)(&config.Size), "size", "target size x,y of image (mm)")
+	flag.Var((*flagSizeValue)(&config.PaperSize), "paper", "target size x,y of paper (mm)")
+	flag.BoolVar(&config.Center, "center", false, "if set, center image on paper")
+	flag.IntVar(&config.PenUp, "penup", 40, "how much to lift pen when moving")
+	flag.IntVar(&config.FeedRate, "feed", 800, "feed rate when drawing (mm/min)")
+	flag.BoolVar(&config.Split, "split", true, "allow paths to be split to reduce pen movement")
+	flag.BoolVar(&config.Reverse, "reverse", true, "allow paths to be drawn backwards to reduce pen movement")
+	flag.Float64Var(&config.Simplify, "simplify", 0.1, "simplify paths within this tolerance (0=disabled)")
 }
 
 func usageMessage() {
@@ -149,84 +88,17 @@ func usageMessage() {
 
 func main() {
 	flag.Usage = usageMessage
+	flag.Parse()
 	fail := func(s string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, s+"\n", args...)
 		os.Exit(2)
-	}
 
-	flag.Parse()
-	if flagIn == "" {
+	}
+	if config.In == "" {
 		fail("must specify -in <svg file>")
 	}
 
-	ps, err := func() (*paths.Paths, error) {
-		f, err := os.Open(flagIn)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		return paths.FromSVG(f)
-	}()
-	if err != nil {
-		fail("%s", err)
-	}
-
-	bounds, err := adjustSize(flagSize, flagPaperSize, flagDelta, flagCenter, ps.Bounds)
-	if err != nil {
-		fail("%s", err)
-	}
-
-	ps.Transform(bounds)
-	ps.Clip(ps.Bounds)
-	if flagSimplify > 0 {
-		ps.Simplify(flagSimplify)
-	}
-
-	ps.Sort(&paths.SortConfig{
-		Split:   flagSplit,
-		Reverse: flagReverse,
-	})
-
-	gcodeOut, err := os.Create(flagOut)
-	if err != nil {
-		fail("failed to open output file: %v", err)
-	}
-
-	if filepath.Ext(flagOut) == ".svg" {
-		err := ps.SVG(gcodeOut)
-		if err == nil {
-			err = gcodeOut.Close()
-		}
-		if err != nil {
-			fail("failed to write svg file: %v", err)
-		}
-		return
-	}
-
-	gcodeWriter := gcode.NewWriter(gcodeOut, &gcode.Config{
-		PenUp:    flagPenUp,
-		FeedRate: flagFeedRate,
-	})
-
-	gcodeWriter.Preamble()
-
-	for _, p := range ps.P {
-		for i, v := range p.V {
-			if i == 0 {
-				gcodeWriter.Move(v[0], v[1])
-			} else {
-				gcodeWriter.Line(v[0], v[1])
-			}
-		}
-	}
-
-	gcodeWriter.Postamble()
-
-	if err := gcodeWriter.Flush(); err != nil {
-		fail("failed to write gcode: %v", err)
-	}
-
-	if err := gcodeOut.Close(); err != nil {
-		fail("failed to write gcode: %v", err)
+	if err := svgtogcode.Convert(&config); err != nil {
+		fail("%v", err)
 	}
 }
