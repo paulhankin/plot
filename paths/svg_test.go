@@ -13,7 +13,7 @@ var testSVG = `
 <svg width="2000" height="1000">
    <path d="M 123, 456 321, 654"/>
    <g transform="translate(200, 100) scale(2)" stroke="black" fill="none">
-	   <path d="M 100, 50 300, 200"/>
+	   <path d="M100,50 300, 200"/>
 	   <g transform="translate(50,50)">
 		   <path d="M 50, 50 250, 50 150, 100"/>
 	   </g>

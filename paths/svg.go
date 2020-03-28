@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
+	"unicode"
 
 	"github.com/JoshVarga/svgparser"
 	"golang.org/x/net/html/charset"
@@ -170,39 +171,125 @@ func parseSVGXForm(x string) (*svgXform, error) {
 	return xf, nil
 }
 
+type cmdType int
+
+const (
+	cmdNone  cmdType = 0
+	cmdMove  cmdType = 1
+	cmdLine  cmdType = 2
+	cmdCurve cmdType = 3
+)
+
+type pathTokenizer struct {
+	b *bytes.Buffer
+}
+
+const (
+	eofRune   = rune(-1)
+	floatRune = rune(-2)
+)
+
+type pathToken struct {
+	r rune
+	f float64
+}
+
+func (pt *pathTokenizer) nextFloat() (pathToken, error) {
+	var b bytes.Buffer
+	for {
+		r, _, err := pt.b.ReadRune()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return pathToken{}, err
+		}
+		if (r >= '0' && r <= '9') || r == '.' {
+			b.WriteRune(r)
+			continue
+		}
+		break
+	}
+	f, err := strconv.ParseFloat(b.String(), 64)
+	return pathToken{r: floatRune, f: f}, err
+}
+
+func (pt *pathTokenizer) Next() (pathToken, error) {
+	for {
+		r, _, err := pt.b.ReadRune()
+		if err == io.EOF {
+			return pathToken{r: eofRune}, nil
+		}
+		if err != nil {
+			return pathToken{}, nil
+		}
+		if r == ',' || r == ' ' || unicode.IsSpace(r) {
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			if err := pt.b.UnreadRune(); err != nil {
+				return pathToken{}, err
+			}
+			return pt.nextFloat()
+		}
+		return pathToken{r: r}, nil
+	}
+}
+
+func vec2AddVec2(a, b Vec2) Vec2 {
+	return Vec2{a[0] + b[0], a[1] + b[1]}
+}
+
 func parsePath(ps *Paths, xf *svgXform, e *svgparser.Element) error {
-	parts := strings.Fields(e.Attributes["d"])
-	move := false
-	var xy Vec2
+	bb := &pathTokenizer{bytes.NewBufferString(e.Attributes["d"])}
+	var xy [6]float64
 	var xyp int
-	for _, p := range parts {
-		if p == "M" {
-			if xyp != 0 {
-				return fmt.Errorf("got odd number of components before M")
-			}
-			move = true
-			continue
-		}
-		if p == "L" {
-			if xyp != 0 {
-				return fmt.Errorf("got odd number of components before L")
-			}
-			continue
-		}
-		p = strings.TrimRight(p, ",")
-		x, err := strconv.ParseFloat(p, 64)
+	var rel bool
+	var last Vec2
+	cmd := cmdNone
+	for {
+		token, err := bb.Next()
 		if err != nil {
 			return err
 		}
-		xy[xyp] = x
-		xyp++
+		if token.r == eofRune {
+			break
+		}
+		fmt.Println(token)
+		p := token.r
+		lp := unicode.ToLower(p)
+		if lp == 'm' {
+			if xyp != 0 {
+				return fmt.Errorf("got stray components before %c", p)
+			}
+			cmd, rel = cmdMove, (p == lp)
+			continue
+		} else if lp == 'l' {
+			if xyp != 0 {
+				return fmt.Errorf("got stray components before %c", p)
+			}
+			cmd, rel = cmdLine, (p == lp)
+			continue
+		} else if p == floatRune {
+			xy[xyp] = token.f
+			xyp++
+		} else {
+			return fmt.Errorf("got unknown token %c", p)
+		}
 		if xyp == 2 {
-			if move {
+			if cmd == cmdMove {
 				path := Path{}
 				ps.P = append(ps.P, path)
 			}
-			ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(xy))
-			move = false
+			v := xf.Apply(Vec2{xy[0], xy[1]})
+			if rel {
+				v = vec2AddVec2(v, last)
+			}
+			ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, v)
+			last = v
+			if cmd == cmdMove {
+				cmd = cmdLine
+			}
 			xyp = 0
 		}
 	}
