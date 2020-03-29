@@ -17,9 +17,31 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
+var isSVGUnit = map[string]bool{
+	"mm": true,
+}
+
+func parseDist(s string) (float64, string, error) {
+	fp, up := s, ""
+	for i, c := range s {
+		if !unicode.IsDigit(c) && c != '.' && c != '-' && c != '+' {
+			fp, up = s[:i], s[i:]
+			break
+		}
+	}
+	f, err := strconv.ParseFloat(fp, 64)
+	if err != nil {
+		return 0, "", err
+	}
+	if up != "" && !isSVGUnit[up] {
+		return 0, "", fmt.Errorf("%q is not understood by this program as an SVG unit", up)
+	}
+	return f, up, nil
+}
+
 func parseBounds(e *svgparser.Element) (Bounds, error) {
-	width, werr := strconv.ParseFloat(e.Attributes["width"], 64)
-	height, herr := strconv.ParseFloat(e.Attributes["height"], 64)
+	width, _, werr := parseDist(e.Attributes["width"])
+	height, _, herr := parseDist(e.Attributes["height"])
 	if werr != nil {
 		return Bounds{}, werr
 	}
@@ -106,6 +128,21 @@ func parseSingleXform(name string, args []string) (*svgXform, error) {
 			fa = append(fa, 0)
 		}
 		return svgXformTranslate(fa[0], fa[1]), nil
+	case "matrix":
+		fa, err := parseFloats(args)
+		if err != nil {
+			return nil, err
+		}
+		if len(fa) != 6 {
+			return nil, fmt.Errorf("matrix transform should have 6 parameters: got %s", args)
+		}
+		return &svgXform{
+			M: [3][3]float64{
+				{fa[0], fa[2], fa[4]},
+				{fa[1], fa[3], fa[5]},
+				{0, 0, 1},
+			},
+		}, nil
 	case "scale":
 		fa, err := parseFloats(args)
 		if err != nil {
@@ -130,6 +167,7 @@ func parseSVGXForm(x string) (*svgXform, error) {
 	state := xfsName
 	fname := ""
 	var args []string
+	var neg bool
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		switch state {
 		case xfsName:
@@ -150,6 +188,10 @@ func parseSVGXForm(x string) (*svgXform, error) {
 			fallthrough
 		case xfsArg:
 			if tok == ')' {
+				if neg {
+					neg = false
+					return nil, fmt.Errorf("don't understand -)")
+				}
 				newxform, err := parseSingleXform(fname, args)
 				if err != nil {
 					return nil, err
@@ -157,9 +199,16 @@ func parseSVGXForm(x string) (*svgXform, error) {
 				xf = xf.Compose(newxform)
 				state = xfsName
 				args = nil
+			} else if tok == '-' {
+				neg = !neg
 			} else if tok == scanner.Float || tok == scanner.Int {
-				args = append(args, s.TokenText())
+				if neg {
+					args = append(args, "-"+s.TokenText())
+				} else {
+					args = append(args, s.TokenText())
+				}
 				state = xfsMaybeComma
+				neg = false
 			} else {
 				return nil, fmt.Errorf("unexpected token %q parsing transform %q", s.TokenText(), x)
 			}
@@ -174,11 +223,28 @@ func parseSVGXForm(x string) (*svgXform, error) {
 type cmdType int
 
 const (
-	cmdNone  cmdType = 0
-	cmdMove  cmdType = 1
-	cmdLine  cmdType = 2
-	cmdCurve cmdType = 3
+	cmdNone cmdType = iota
+	cmdMove
+	cmdLine
+	cmdHorLine
+	cmdVerLine
+	cmdCurve
 )
+
+func (c cmdType) Args() int {
+	switch c {
+	case cmdNone:
+		return 0
+	case cmdMove, cmdLine:
+		return 2
+	case cmdHorLine, cmdVerLine:
+		return 1
+	case cmdCurve:
+		return 6
+	default:
+		return 0
+	}
+}
 
 type pathTokenizer struct {
 	b *bytes.Buffer
@@ -194,6 +260,15 @@ type pathToken struct {
 	f float64
 }
 
+func (pt pathToken) String() string {
+	if pt.r == eofRune {
+		return "tokEOF{}"
+	} else if pt.r == floatRune {
+		return fmt.Sprintf("tokFloat{%g}", pt.f)
+	}
+	return fmt.Sprintf("tokRune{%c}", pt.r)
+}
+
 func (pt *pathTokenizer) nextFloat() (pathToken, error) {
 	var b bytes.Buffer
 	for {
@@ -204,7 +279,7 @@ func (pt *pathTokenizer) nextFloat() (pathToken, error) {
 		if err != nil {
 			return pathToken{}, err
 		}
-		if (r >= '0' && r <= '9') || r == '.' {
+		if (r >= '0' && r <= '9') || r == '.' || r == '-' {
 			b.WriteRune(r)
 			continue
 		}
@@ -226,7 +301,7 @@ func (pt *pathTokenizer) Next() (pathToken, error) {
 		if r == ',' || r == ' ' || unicode.IsSpace(r) {
 			continue
 		}
-		if r >= '0' && r <= '9' {
+		if r >= '0' && r <= '9' || r == '-' {
 			if err := pt.b.UnreadRune(); err != nil {
 				return pathToken{}, err
 			}
@@ -240,12 +315,29 @@ func vec2AddVec2(a, b Vec2) Vec2 {
 	return Vec2{a[0] + b[0], a[1] + b[1]}
 }
 
+func bez1(p0, p1, p2, p3 Vec2, t float64) Vec2 {
+	a, b, c, d := (1-t)*(1-t)*(1-t), 3*(1-t)*(1-t)*t, 3*(1-t)*t*t, t*t*t
+	return Vec2{a*p0[0] + b*p1[0] + c*p2[0] + d*p3[0], a*p0[1] + b*p1[1] + c*p2[1] + d*p3[1]}
+}
+
+func bezierInterpolate(target []Vec2, p0, p1, p2, p3 Vec2, start, end, d float64) []Vec2 {
+	vs := bez1(p0, p1, p2, p3, start)
+	ve := bez1(p0, p1, p2, p3, end)
+	if end-start < 0.5 && vec2dist(vs, ve) < d {
+		target = append(target, ve)
+		return target
+	}
+	target = bezierInterpolate(target, p0, p1, p2, p3, start, (start+end)/2, d)
+	return bezierInterpolate(target, p0, p1, p2, p3, (start+end)/2, end, d)
+}
+
 func parsePath(ps *Paths, xf *svgXform, e *svgparser.Element) error {
 	bb := &pathTokenizer{bytes.NewBufferString(e.Attributes["d"])}
 	var xy [6]float64
 	var xyp int
 	var rel bool
-	var last Vec2
+	var first, last Vec2
+	var firstSet bool
 	cmd := cmdNone
 	for {
 		token, err := bb.Next()
@@ -253,50 +345,106 @@ func parsePath(ps *Paths, xf *svgXform, e *svgparser.Element) error {
 			return err
 		}
 		if token.r == eofRune {
-			break
+			if xyp != 0 {
+				return fmt.Errorf("got stray component in path")
+			}
+			return nil
 		}
-		fmt.Println(token)
 		p := token.r
 		lp := unicode.ToLower(p)
 		if lp == 'm' {
+			// Move
 			if xyp != 0 {
 				return fmt.Errorf("got stray components before %c", p)
 			}
 			cmd, rel = cmdMove, (p == lp)
-			continue
 		} else if lp == 'l' {
+			// Line To
 			if xyp != 0 {
 				return fmt.Errorf("got stray components before %c", p)
 			}
 			cmd, rel = cmdLine, (p == lp)
-			continue
+		} else if lp == 'v' || lp == 'h' {
+			if xyp != 0 {
+				return fmt.Errorf("got stray components before %c", p)
+			}
+			cmd, rel = cmdHorLine, (p == lp)
+			if lp == 'v' {
+				cmd = cmdVerLine
+			}
+		} else if lp == 'z' {
+			// Close Path
+			if !firstSet {
+				return fmt.Errorf("got close path %c before any points", p)
+			}
+			if xyp != 0 {
+				return fmt.Errorf("got stray components before %c", p)
+			}
+			ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(first))
+			last = first
+		} else if lp == 'c' {
+			// Curve To
+			cmd, rel = cmdCurve, (p == lp)
 		} else if p == floatRune {
 			xy[xyp] = token.f
 			xyp++
+			if xyp > cmd.Args() {
+				return fmt.Errorf("got unexpected float value %v", xy[xyp-1])
+			}
+			if xyp == cmd.Args() {
+				if cmd == cmdMove {
+					path := Path{}
+					ps.P = append(ps.P, path)
+				}
+				var v Vec2
+				switch cmd {
+				case cmdHorLine:
+					v = Vec2{xy[0], last[1]}
+					if rel {
+						v[0] += last[0]
+					}
+					ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(v))
+				case cmdVerLine:
+					v = Vec2{last[0], xy[1]}
+					if rel {
+						v[1] += last[1]
+					}
+					ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(v))
+				case cmdCurve:
+					p0 := last
+					p1 := Vec2{xy[0], xy[1]}
+					p2 := Vec2{xy[2], xy[3]}
+					p3 := Vec2{xy[4], xy[5]}
+					if rel {
+						p1 = vec2AddVec2(p1, last)
+						p2 = vec2AddVec2(p2, last)
+						p3 = vec2AddVec2(p3, last)
+					}
+					v = p3
+					for _, v := range bezierInterpolate([]Vec2{}, p0, p1, p2, p3, 0, 1, 0.5) {
+						ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(v))
+					}
+				case cmdLine, cmdMove:
+					v = Vec2{xy[xyp-2], xy[xyp-1]}
+					if rel {
+						v = vec2AddVec2(v, last)
+					}
+					ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, xf.Apply(v))
+				}
+				if !firstSet {
+					first = v
+					firstSet = true
+				}
+				last = v
+				if cmd == cmdMove {
+					cmd = cmdLine
+				}
+				xyp = 0
+			}
 		} else {
 			return fmt.Errorf("got unknown token %c", p)
 		}
-		if xyp == 2 {
-			if cmd == cmdMove {
-				path := Path{}
-				ps.P = append(ps.P, path)
-			}
-			v := xf.Apply(Vec2{xy[0], xy[1]})
-			if rel {
-				v = vec2AddVec2(v, last)
-			}
-			ps.P[len(ps.P)-1].V = append(ps.P[len(ps.P)-1].V, v)
-			last = v
-			if cmd == cmdMove {
-				cmd = cmdLine
-			}
-			xyp = 0
-		}
 	}
-	if xyp != 0 {
-		return fmt.Errorf("got stray component in path")
-	}
-	return nil
 }
 
 type svgXform struct {
@@ -409,9 +557,9 @@ func (ps *Paths) SVG(w io.Writer) error {
 		wr(`<path d="`)
 		for i, v := range p.V {
 			if i == 0 {
-				wr("M %.2f, %.2f", v[0], v[1])
+				wr("M %.2f %.2f", v[0], v[1])
 			} else {
-				wr(" %.2f, %.2f", v[0], v[1])
+				wr(" %.2f %.2f", v[0], v[1])
 			}
 		}
 		wr("\"/>\n")
