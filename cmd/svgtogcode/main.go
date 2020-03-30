@@ -95,6 +95,9 @@ func main() {
 		os.Exit(2)
 
 	}
+	if len(flag.Args()) != 0 {
+		fail("unrecognized command-line arguments: %v", flag.Args())
+	}
 	if config.In == "" {
 		fail("must specify -in <svg file>")
 	}
