@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -50,7 +51,7 @@ type Config struct {
 	BorderLeft, BorderRight, BorderTop float64
 	XSize                              float64
 	PaperSize                          paths.Vec2
-	Text                               string
+	Text, TextFile                     string
 }
 
 var config Config
@@ -62,7 +63,8 @@ func init() {
 	flag.Float64Var(&config.BorderTop, "border_top", 10, "border top (mm)")
 	flag.Float64Var(&config.XSize, "xsize", 8, "height of x character (mm)")
 	flag.Var((*flagSizeValue)(&config.PaperSize), "paper", "target size x,y of paper (mm)")
-	flag.StringVar(&config.Text, "text", "The quick brown fox jumps over the lazy dog", "text to render")
+	flag.StringVar(&config.Text, "text", "", "text to render")
+	flag.StringVar(&config.TextFile, "textfile", "", "text to render (read from this file)")
 }
 
 func loadFont() (*paths.Font, error) {
@@ -74,7 +76,7 @@ func loadFont() (*paths.Font, error) {
 	fc := &paths.FontConfig{
 		Glyph:       map[rune]paths.FontGlyphConfig{},
 		AdvanceRune: 'x',
-		Advance:     0.1,
+		Advance:     0.15,
 		SpaceRune:   'x',
 		Space:       1.3,
 		LineRune:    'I',
@@ -86,11 +88,13 @@ func loadFont() (*paths.Font, error) {
 		[]rune("abcdefghijklm"),
 		[]rune("nopqrstuvwxyz"),
 		[]rune("012345679"),
-		[]rune(".,"),
+		[]rune(".,-'"),
 	}
 	sym := map[rune]string{
-		'.': "stop",
-		',': "comma",
+		'.':  "stop",
+		',':  "comma",
+		'-':  "dash",
+		'\'': "apostrophe",
 	}
 	rn := func(r rune) string {
 		if unicode.IsUpper(r) {
@@ -129,12 +133,31 @@ func renderSVG(n string, ps *paths.Paths) error {
 	return f.Close()
 }
 
+func getText(config *Config) (string, error) {
+	if config.Text != "" && config.TextFile != "" {
+		return "", fmt.Errorf("specified text and textfile: one or the other")
+	}
+	if config.TextFile != "" {
+		b, err := ioutil.ReadFile(config.TextFile)
+		return string(b), err
+	}
+	if config.Text == "" {
+		return "", fmt.Errorf("specify text or textfile for text to be rendered")
+	}
+	return config.Text, nil
+}
+
 func main() {
 	failf := func(s string, args ...interface{}) {
 		fmt.Fprintf(os.Stderr, s+"\n", args...)
 		os.Exit(1)
 	}
 	flag.Parse()
+	text, err := getText(&config)
+	if err != nil {
+		failf("%v", err)
+	}
+
 	font, err := loadFont()
 	if err != nil {
 		failf("failed to load font: %v", err)
@@ -151,7 +174,7 @@ func main() {
 	if err != nil {
 		failf("failed to get font scale: %v", err)
 	}
-	pgs, err := paths.LayoutText(font, config.Text, scale, config.PaperSize[0]-config.BorderLeft-config.BorderRight)
+	pgs, err := paths.LayoutText(font, text, scale, config.PaperSize[0]-config.BorderLeft-config.BorderRight)
 	if err != nil {
 		failf("failed to render text: %v", err)
 	}
