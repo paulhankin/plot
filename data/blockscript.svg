@@ -26,8 +26,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="4.3117284"
-     inkscape:cx="209.97275"
-     inkscape:cy="462.34524"
+     inkscape:cx="217.16244"
+     inkscape:cy="425.23715"
      inkscape:document-units="mm"
      inkscape:current-layer="layer3"
      showgrid="true"
@@ -912,6 +912,83 @@
          d="m 64.431817,152.55 c 0,0 1.779546,-0.12273 3.559092,-0.675"
          style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
          sodipodi:nodetypes="cc" />
+    </g>
+    <g
+       id="colon"
+       inkscape:label="#g186">
+      <g
+         id="g228">
+        <path
+           inkscape:connector-curvature="0"
+           id="path222"
+           d="M 41.972727,200.41364 42.463635,201.15"
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+        <path
+           inkscape:connector-curvature="0"
+           id="path224"
+           d="m 42.095454,203.66591 0.429546,0.675"
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+      </g>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 53.018182,199.18636 c 0,0 -0.920456,0.98182 -0.49091,1.77955"
+       id="open_quote"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:label="#path188" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 62.836364,199.24772 c 0,0 0.122727,1.65682 -0.490911,1.65682"
+       id="close_quote"
+       inkscape:connector-curvature="0"
+       inkscape:label="#path190" />
+    <g
+       id="question_mark"
+       inkscape:label="#g198"
+       transform="translate(-0.49090909)">
+      <path
+         sodipodi:nodetypes="cccc"
+         inkscape:connector-curvature="0"
+         id="path192"
+         d="m 72.777272,200.29091 c 0,0 2.147726,-2.45455 4.111363,-0.49091 0,0 1.595456,0.85909 -1.963637,2.82273 0,0 -0.306816,0.12273 -0.122727,1.16591"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path194"
+         d="m 74.556817,204.64773 0.245454,0.42954"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+    </g>
+    <g
+       id="semicolon"
+       inkscape:label="#g210">
+      <g
+         id="g205">
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           d="m 82.227271,200.29091 0.552273,0.61364"
+           id="path200"
+           inkscape:connector-curvature="0" />
+      </g>
+      <path
+         inkscape:connector-curvature="0"
+         id="path202"
+         d="m 82.411363,203.78864 c 0,0 0.122727,1.1659 -0.736365,2.27045"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+    </g>
+    <g
+       id="exclamation_mark"
+       inkscape:label="#g236">
+      <path
+         inkscape:connector-curvature="0"
+         id="path230"
+         d="M 92.720453,199.49318 92.352272,203.175"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path232"
+         d="m 92.352272,204.34091 -0.429546,0.61363"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
     </g>
   </g>
 </svg>

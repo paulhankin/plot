@@ -3,6 +3,8 @@ package paths
 import (
 	"fmt"
 	"io"
+	"unicode"
+	"unicode/utf8"
 )
 
 // FontGlyphConfig describes how to find a particular glyph in
@@ -116,31 +118,79 @@ func LayoutText(f *Font, s string, scale float64, w float64) ([]PositionedGlyph,
 	var pgs []PositionedGlyph
 	line := 0 // glyphs output on current line
 
+	var words [][]rune
+	data := []byte(s)
+	start := 0
+	chrtype := func(r rune) rune {
+		if r == '\n' {
+			return '\n'
+		}
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		return 'a'
+	}
+	for start < len(data) {
+		// skip spaces, except \n
+		for width := 0; start < len(data); start += width {
+			var r rune
+			r, width = utf8.DecodeRune(data[start:])
+			if r == '\n' || !unicode.IsSpace(r) {
+				break
+			}
+		}
+		// read either a sequence of \n, or a sequence of any other character
+		var word []rune
+		for width := 0; start < len(data); start += width {
+			var r rune
+			r, width = utf8.DecodeRune(data[start:])
+			if len(word) > 0 && chrtype(r) != chrtype(word[0]) {
+				break
+			}
+			word = append(word, r)
+		}
+		if len(word) > 0 {
+			words = append(words, word)
+		}
+	}
+
 	newline := func() {
 		line = 0
 		point[0] = 0
 		point[1] += f.LineAdvance * scale
 	}
 
-	for _, r := range s {
-		if r == '\n' {
+	for _, word := range words {
+		if line > 0 {
+			point[0] += f.Glyph[' '].Advance * scale
+		}
+		wl := 0.0
+		for i, r := range word {
+			if r == '\n' {
+				continue
+			}
+			if i+1 == len(word) {
+				wl += f.Glyph[r].Width * scale
+			} else {
+				wl += f.Glyph[r].Advance * scale
+			}
+		}
+		if line > 0 && point[0]+wl > w {
 			newline()
-			continue
 		}
-		g, ok := f.Glyph[r]
-		if !ok {
-			return nil, fmt.Errorf("no glyph for rune %c", r)
+		for _, r := range word {
+			if r == '\n' {
+				newline()
+				continue
+			}
+			g, ok := f.Glyph[r]
+			if !ok {
+				return nil, fmt.Errorf("no glyph for rune %c", r)
+			}
+			pgs = append(pgs, PositionedGlyph{Pos: point, Scale: scale, G: g})
+			point[0] += g.Advance * scale
+			line++
 		}
-		if r == ' ' && line == 0 {
-			// eat spaces at start of line
-			continue
-		}
-		if line > 0 && point[0]+g.Width*scale > w {
-			newline()
-		}
-		pgs = append(pgs, PositionedGlyph{Pos: point, Scale: scale, G: g})
-		point[0] += g.Advance * scale
-		line++
 	}
 	return pgs, nil
 }

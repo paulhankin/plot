@@ -76,7 +76,7 @@ func loadFont() (*paths.Font, error) {
 	fc := &paths.FontConfig{
 		Glyph:       map[rune]paths.FontGlyphConfig{},
 		AdvanceRune: 'x',
-		Advance:     0.15,
+		Advance:     0.3,
 		SpaceRune:   'x',
 		Space:       1.5,
 		LineRune:    'I',
@@ -88,13 +88,19 @@ func loadFont() (*paths.Font, error) {
 		[]rune("abcdefghijklm"),
 		[]rune("nopqrstuvwxyz"),
 		[]rune("012345679"),
-		[]rune(".,-'"),
+		[]rune(".,-':\u2018\u2019?;!"),
 	}
 	sym := map[rune]string{
-		'.':  "stop",
-		',':  "comma",
-		'-':  "dash",
-		'\'': "apostrophe",
+		'.':      "stop",
+		',':      "comma",
+		'-':      "dash",
+		'\'':     "apostrophe",
+		':':      "colon",
+		'\u2018': "open_quote",
+		'\u2019': "close_quote",
+		'?':      "question_mark",
+		';':      "semicolon",
+		'!':      "exclamation_mark",
 	}
 	rn := func(r rune) string {
 		if unicode.IsUpper(r) {
