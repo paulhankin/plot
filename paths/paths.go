@@ -60,6 +60,42 @@ func (ps *Paths) Translate(dx Vec2) {
 	ps.Transform(nb)
 }
 
+// Rotate rotates all paths by the given angle (in radians)
+// about the center of the bounds.
+// The bounds are updated to an axis-aligned bounding box
+// that contains the original (rotated) bounds.
+func (ps *Paths) Rotate(theta float64) {
+	cx := (ps.Bounds.Min[0] + ps.Bounds.Max[0]) / 2
+	cy := (ps.Bounds.Min[1] + ps.Bounds.Max[1]) / 2
+	t0 := svgXformTranslate(-cx, -cy)
+	rot := svgXformRotate(theta)
+	t1 := svgXformTranslate(cx, cy)
+	m := t1.Compose(rot).Compose(t0)
+	for _, p := range ps.P {
+		for i, v := range p.V {
+			p.V[i] = m.Apply(v)
+		}
+	}
+
+	// Also mutate bounding box
+	bounds := [2]Vec2{ps.Bounds.Min, ps.Bounds.Max}
+	inf := math.Inf(1)
+	min := Vec2{inf, inf}
+	max := Vec2{-inf, -inf}
+
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			v := m.Apply(Vec2{bounds[i][0], bounds[j][1]})
+			for k := 0; k < 2; k++ {
+				min[k] = math.Min(min[k], v[k])
+				max[k] = math.Max(max[k], v[k])
+			}
+		}
+	}
+	ps.Bounds.Min = min
+	ps.Bounds.Max = max
+}
+
 // Transform resizes all paths so that the rectangle forming the
 // current bounds is the size of the new bounds. The bounds
 // are also updated to the new bounds.

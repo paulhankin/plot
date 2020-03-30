@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -109,6 +110,17 @@ func svgXformScale(x, y float64) *svgXform {
 		M: [3][3]float64{
 			{x, 0, 0},
 			{0, y, 0},
+			{0, 0, 1},
+		},
+	}
+}
+
+func svgXformRotate(theta float64) *svgXform {
+	c, s := math.Cos(theta), math.Sin(theta)
+	return &svgXform{
+		M: [3][3]float64{
+			{c, s, 0},
+			{-s, c, 0},
 			{0, 0, 1},
 		},
 	}

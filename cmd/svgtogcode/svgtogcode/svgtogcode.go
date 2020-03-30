@@ -23,8 +23,9 @@ type Config struct {
 	PenUp     int
 	FeedRate  int
 
-	Split   bool
-	Reverse bool
+	Split         bool
+	Reverse       bool
+	RotateDegrees float64
 
 	Simplify float64
 }
@@ -83,7 +84,14 @@ func Convert(cfg *Config) error {
 			return nil, err
 		}
 		defer f.Close()
-		return paths.FromSVG(f)
+		ps, err := paths.FromSVG(f)
+		if err != nil {
+			return nil, err
+		}
+		if cfg.RotateDegrees != 0 {
+			ps.Rotate(cfg.RotateDegrees * math.Pi / 180)
+		}
+		return ps, nil
 	}()
 	if err != nil {
 		return err
@@ -111,6 +119,8 @@ func Convert(cfg *Config) error {
 	}
 
 	if filepath.Ext(cfg.Out) == ".svg" {
+		ps.Bounds.Min = paths.Vec2{0, 0}
+		ps.Bounds.Max = cfg.PaperSize
 		err := ps.SVG(gcodeOut)
 		if err == nil {
 			err = gcodeOut.Close()

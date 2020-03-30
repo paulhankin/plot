@@ -78,9 +78,9 @@ func loadFont() (*paths.Font, error) {
 		AdvanceRune: 'x',
 		Advance:     0.15,
 		SpaceRune:   'x',
-		Space:       1.3,
+		Space:       1.5,
 		LineRune:    'I',
-		Line:        1.9,
+		Line:        2.5,
 	}
 	layout := [][]rune{
 		[]rune("ABCDEFGHIJKLM"),

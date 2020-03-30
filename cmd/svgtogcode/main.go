@@ -68,6 +68,7 @@ func init() {
 	flag.BoolVar(&config.Split, "split", true, "allow paths to be split to reduce pen movement")
 	flag.BoolVar(&config.Reverse, "reverse", true, "allow paths to be drawn backwards to reduce pen movement")
 	flag.Float64Var(&config.Simplify, "simplify", 0.1, "simplify paths within this tolerance (0=disabled)")
+	flag.Float64Var(&config.RotateDegrees, "rotate", 0, "rotate input by this number of degrees about its center")
 }
 
 func usageMessage() {
