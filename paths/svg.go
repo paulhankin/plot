@@ -478,8 +478,13 @@ var svgIdentity = &svgXform{
 	M: [3][3]float64{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
 }
 
-func parsePaths(p *Paths, xform *svgXform, e *svgparser.Element) error {
+func parsePaths(p *Paths, pm map[string]*Paths, xform *svgXform, e *svgparser.Element) error {
 	for _, c := range e.Children {
+		cp := p
+		id := c.Attributes["id"]
+		if namedP, ok := pm[id]; id != "" && ok {
+			cp = namedP
+		}
 		switch c.Name {
 		case "g":
 			gxf, err := parseSVGXForm(c.Attributes["transform"])
@@ -487,15 +492,15 @@ func parsePaths(p *Paths, xform *svgXform, e *svgparser.Element) error {
 				return err
 			}
 			xf2 := xform.Compose(gxf)
-			if err := parsePaths(p, xf2, c); err != nil {
+			if err := parsePaths(cp, pm, xf2, c); err != nil {
 				return err
 			}
 		case "path":
-			if err := parsePath(p, xform, c); err != nil {
+			if err := parsePath(cp, xform, c); err != nil {
 				return err
 			}
 		case "line":
-			if err := parseLine(p, xform, c); err != nil {
+			if err := parseLine(cp, xform, c); err != nil {
 				return err
 			}
 		case "defs":
@@ -507,11 +512,7 @@ func parsePaths(p *Paths, xform *svgXform, e *svgparser.Element) error {
 	return nil
 }
 
-// FromSVG parses an SVG file, extracting paths.
-// This provides only limited SVG parsing support, and
-// will fail or produce incorrect results if the SVG file
-// uses features that it doesn't understand.
-func FromSVG(r io.Reader) (p *Paths, rerr error) {
+func IDsFromSVG(r io.Reader, ids []string) (map[string]*Paths, error) {
 	raw, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -529,8 +530,26 @@ func FromSVG(r io.Reader) (p *Paths, rerr error) {
 	if err != nil {
 		return nil, err
 	}
-	p = &Paths{Bounds: bs}
-	return p, parsePaths(p, svgIdentity, elt)
+	pathMap := map[string]*Paths{
+		"": &Paths{Bounds: bs},
+	}
+
+	for _, id := range ids {
+		if _, ok := pathMap[id]; ok {
+			return nil, fmt.Errorf("id %q appears twice or more", id)
+		}
+		pathMap[id] = &Paths{Bounds: bs}
+	}
+	return pathMap, parsePaths(pathMap[""], pathMap, svgIdentity, elt)
+}
+
+// FromSVG parses an SVG file, extracting paths.
+// This provides only limited SVG parsing support, and
+// will fail or produce incorrect results if the SVG file
+// uses features that it doesn't understand.
+func FromSVG(r io.Reader) (*Paths, error) {
+	pm, err := IDsFromSVG(r, nil)
+	return pm[""], err
 }
 
 var (

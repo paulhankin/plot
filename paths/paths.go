@@ -2,6 +2,8 @@
 // of line segments.
 package paths
 
+import "math"
+
 // Vec2 is a 2-dimensional vector.
 type Vec2 [2]float64
 
@@ -20,6 +22,42 @@ type Bounds struct {
 type Paths struct {
 	Bounds Bounds
 	P      []Path
+}
+
+// TightenBounds adjusts the bounds to exactly contain the paths.
+// If there are no paths, the bounds are set to zero.
+func (ps *Paths) TightenBounds() {
+	inf := math.Inf(1)
+	min := Vec2{inf, inf}
+	max := Vec2{-inf, -inf}
+	i := 0
+	for _, p := range ps.P {
+		for _, v := range p.V {
+			i++
+			min[0] = math.Min(min[0], v[0])
+			min[1] = math.Min(min[1], v[1])
+			max[0] = math.Max(max[0], v[0])
+			max[1] = math.Max(max[1], v[1])
+		}
+	}
+	if i == 0 {
+		ps.Bounds = Bounds{}
+		return
+	}
+	ps.Bounds = Bounds{
+		Min: min,
+		Max: max,
+	}
+}
+
+// Translate moves all the paths by the given amount.
+func (ps *Paths) Translate(dx Vec2) {
+	b := ps.Bounds
+	nb := Bounds{
+		Min: vec2AddVec2(b.Min, dx),
+		Max: vec2AddVec2(b.Max, dx),
+	}
+	ps.Transform(nb)
 }
 
 // Transform resizes all paths so that the rectangle forming the
