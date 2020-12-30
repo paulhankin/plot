@@ -565,7 +565,7 @@ func FromSVG(r io.Reader) (*Paths, error) {
 }
 
 var (
-	svgh = `<svg height="%d" width="%d" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
+	svgh = `<svg height="%dmm" width="%dmm" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
 )
 
 // SVG writes an SVG file that contains black strokes along the paths.
