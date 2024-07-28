@@ -51,7 +51,7 @@ func TestSimplify(t *testing.T) {
 		}
 		ps := &Paths{
 			Bounds: arg.Bounds,
-			P:      []Path{Path{V: append([]Vec2{}, c.path.V...)}},
+			P:      []Path{{V: append([]Vec2{}, c.path.V...)}},
 		}
 		ps.Simplify(c.tol)
 		if !reflect.DeepEqual(ps.P, c.want) {

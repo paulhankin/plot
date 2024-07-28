@@ -201,7 +201,7 @@ func (f *Font) ScaleFromRuneHeight(r rune, height float64) (float64, error) {
 		return 0, fmt.Errorf("can't find rune %c", r)
 	}
 	if g.Height == 0 {
-		return 0, fmt.Errorf("rune %c has 0 height")
+		return 0, fmt.Errorf("rune %c has 0 height", r)
 	}
 	return height / g.Height, nil
 }

@@ -36,7 +36,7 @@ func TestTransform(t *testing.T) {
 		return Bounds{Min: Vec2{mx, my}, Max: Vec2{Mx, My}}
 	}
 	cases := []transformTestCase{
-		transformTestCase{
+		{
 			desc: "translate 100,0",
 			in: &Paths{
 				Bounds: b(0, 0, 200, 100),
@@ -48,7 +48,7 @@ func TestTransform(t *testing.T) {
 				P:      []Path{p(100+50, 20, 100+100, 40)},
 			},
 		},
-		transformTestCase{
+		{
 			desc: "scale 2,2",
 			in: &Paths{
 				Bounds: b(0, 0, 200, 100),

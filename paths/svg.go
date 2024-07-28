@@ -295,6 +295,9 @@ func (pt *pathTokenizer) nextFloat() (pathToken, error) {
 			b.WriteRune(r)
 			continue
 		}
+		if err := pt.b.UnreadRune(); err != nil {
+			return pathToken{}, err
+		}
 		break
 	}
 	f, err := strconv.ParseFloat(b.String(), 64)
@@ -335,7 +338,7 @@ func bez1(p0, p1, p2, p3 Vec2, t float64) Vec2 {
 func bezierInterpolate(target []Vec2, p0, p1, p2, p3 Vec2, start, end, d float64) []Vec2 {
 	vs := bez1(p0, p1, p2, p3, start)
 	ve := bez1(p0, p1, p2, p3, end)
-	if end-start < 0.5 && vec2dist(vs, ve) < d {
+	if end-start < 0.25 && vec2dist(vs, ve) < d {
 		target = append(target, ve)
 		return target
 	}
@@ -543,7 +546,7 @@ func IDsFromSVG(r io.Reader, ids []string) (map[string]*Paths, error) {
 		return nil, err
 	}
 	pathMap := map[string]*Paths{
-		"": &Paths{Bounds: bs},
+		"": {Bounds: bs},
 	}
 
 	for _, id := range ids {
@@ -588,9 +591,9 @@ func (ps *Paths) SVG(w io.Writer) error {
 		wr(`<path d="`)
 		for i, v := range p.V {
 			if i == 0 {
-				wr("M %.2f %.2f", v[0], v[1])
+				wr("M %.4f %.4f", v[0], v[1])
 			} else {
-				wr(" %.2f %.2f", v[0], v[1])
+				wr(" %.4f %.4f", v[0], v[1])
 			}
 		}
 		wr("\"/>\n")

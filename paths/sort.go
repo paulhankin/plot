@@ -236,7 +236,6 @@ func (vi *vindex) popNearest(pos Vec2) verticle {
 		}
 		r *= 2
 	}
-	panic("no verticles")
 }
 
 func sortVerticles(ps *Paths, vs []verticle, want int) []verticle {

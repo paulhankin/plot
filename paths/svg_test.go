@@ -27,11 +27,7 @@ func TestSVG(t *testing.T) {
 	}
 	want := &Paths{
 		Bounds: Bounds{Max: Vec2{2000, 1000}},
-		P: []Path{
-			Path{V: []Vec2{{123, 456}, {321, 654}}},
-			Path{V: []Vec2{{400, 200}, {800, 500}}},
-			Path{V: []Vec2{{400, 300}, {800, 300}, {600, 400}}},
-		},
+		P:      []Path{{V: []Vec2{{123, 456}, {321, 654}}}, {V: []Vec2{{400, 200}, {800, 500}}}, {V: []Vec2{{400, 300}, {800, 300}, {600, 400}}}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("svg parse. Got:\n%v\nWant:\n%v\n", got, want)

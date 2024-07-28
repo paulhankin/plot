@@ -1,10 +1,5 @@
 package paths
 
-// frac returns s such that x*(1-s)+y*s = t
-func frac(x, y, t float64) float64 {
-	return (t - x) / (y - x)
-}
-
 type outcode uint
 
 const (
