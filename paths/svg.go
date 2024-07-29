@@ -567,12 +567,21 @@ func FromSVG(r io.Reader) (*Paths, error) {
 	return pm[""], err
 }
 
+// SVGConfig provides configuration for the svg generated.
+type SVGConfig struct {
+	// width and height attributes of the top-level SVG.
+	Width, Height string
+	// the four dimensions of the view box.
+	ViewBox [4]int
+	// The stroke-width attribute of paths generated.
+	StrokeWidth string
+}
+
 var (
-	svgh = `<svg height="%dmm" width="%dmm" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
+	svgh = `<svg height="%s" width="%s" viewBox="%d %d %d %d" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`
 )
 
-// SVG writes an SVG file that contains black strokes along the paths.
-func (ps *Paths) SVG(w io.Writer) error {
+func (ps *Paths) SVGWithConfig(w io.Writer, cfg *SVGConfig) error {
 	var werr error
 	bi := bufio.NewWriter(w)
 	wr := func(f string, args ...interface{}) {
@@ -581,9 +590,9 @@ func (ps *Paths) SVG(w io.Writer) error {
 		}
 		_, werr = fmt.Fprintf(bi, f, args...)
 	}
-	wr(svgh, int(ps.Bounds.Max[1]), int(ps.Bounds.Max[0]), int(ps.Bounds.Min[0]), int(ps.Bounds.Min[1]), int(ps.Bounds.Max[0]-ps.Bounds.Min[0]), int(ps.Bounds.Max[1]-ps.Bounds.Min[1]))
+	wr(svgh, cfg.Height, cfg.Width, cfg.ViewBox[0], cfg.ViewBox[1], cfg.ViewBox[2], cfg.ViewBox[3])
 	wr("\n")
-	wr("<g fill=\"none\" stroke=\"black\" stroke-width=\"0.1\">\n")
+	wr("<g fill=\"none\" stroke=\"black\" stroke-width=\"%s\">\n", cfg.StrokeWidth)
 	for _, p := range ps.P {
 		if len(p.V) == 0 {
 			continue
@@ -604,4 +613,23 @@ func (ps *Paths) SVG(w io.Writer) error {
 		werr = bi.Flush()
 	}
 	return werr
+}
+
+func (ps *Paths) DefaultConfig() *SVGConfig {
+	return &SVGConfig{
+		Width:  fmt.Sprintf("%dmm", int(ps.Bounds.Max[1])),
+		Height: fmt.Sprintf("%dmm", int(ps.Bounds.Max[0])),
+		ViewBox: [4]int{
+			int(ps.Bounds.Min[0]),
+			int(ps.Bounds.Min[1]),
+			int(ps.Bounds.Max[0] - ps.Bounds.Min[0]),
+			int(ps.Bounds.Max[1] - ps.Bounds.Min[1]),
+		},
+		StrokeWidth: "0.1",
+	}
+}
+
+// SVG writes an SVG file that contains black strokes along the paths.
+func (ps *Paths) SVG(w io.Writer) error {
+	return ps.SVGWithConfig(w, ps.DefaultConfig())
 }
